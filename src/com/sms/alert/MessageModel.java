@@ -18,6 +18,7 @@ public class MessageModel implements Serializable {
     private Boolean status;
     private String status_msg;
     private String dateSent;
+    private int id;
 
     public String getBody() {
         return body;
@@ -57,6 +58,14 @@ public class MessageModel implements Serializable {
 
     public void setDateSent(String dateSent) {
         this.dateSent = dateSent;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
     }
 
 }

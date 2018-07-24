@@ -24,6 +24,7 @@ import java.sql.Connection;
 import org.lhs.dbcon.DbConnectionX;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import org.lhs.dbcon.DateManipulation;
 import org.xml.sax.InputSource;
 import org.w3c.dom.Document;
 
@@ -59,21 +60,28 @@ public class SMSBankingAlert implements Runnable {
             con = dbCon.mySqlDBconnection();
 
             String querySMSDetails = "select * from smstable "
-                    + "where status=false and statuscode=null";
+                    + "where status=false and statuscode is null";
             //
             pstmt = con.prepareStatement(querySMSDetails);
             rs = pstmt.executeQuery();
 
             //
-            
+            String _val = null;
             if (rs.next()) {
 
-                String value=rs.getString("body");
-                String _val = value.replace(" ", "%20");
+                String value = rs.getString("body");
+                _val = value.replace(" ", "%20");
+                _val = _val.replace(",", "%2C");
+                _val = _val.replace(":", "%3A");
+                _val = _val.replace(";", "%3B");
+                _val = _val.replace("'", "%27");
+                _val = _val.replace("(", "%28");
+                _val = _val.replace(")", "%29");
                 messageModel.setBody(_val);
                 messageModel.setPnum(rs.getString("phonenumbers"));
                 messageModel.setDateSent(rs.getString("datesent"));
                 messageModel.setStatus(true);
+                messageModel.setId(rs.getInt("id"));
                 return messageModel;
 
             } else {
@@ -112,6 +120,29 @@ public class SMSBankingAlert implements Runnable {
 
     }//end doTransaction...
 
+    public void updateSmsTable(String statusCode, String description, int id) {
+        DbConnectionX dbConnections = new DbConnectionX();
+        Connection con = null;
+        ResultSet rs = null;
+        PreparedStatement pstmt = null;
+        try {
+            con = dbConnections.mySqlDBconnection();
+
+            String updateSmsTable = "update smstable set status=?,statuscode=?,statusdescription=?,datemessagesent=?,datesenttime=? where id=?";
+            pstmt = con.prepareStatement(updateSmsTable);
+            pstmt.setBoolean(1, true);
+            pstmt.setString(2, statusCode);
+            pstmt.setString(3, description);
+            pstmt.setString(4, DateManipulation.dateAlone());
+            pstmt.setString(5, DateManipulation.dateAndTime());
+            pstmt.setInt(6, id);
+            pstmt.executeUpdate();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
     public void run() {
 
         int i = 0;
@@ -131,9 +162,9 @@ public class SMSBankingAlert implements Runnable {
                     System.out.println(messageModel.getStatus_msg());//no record
                     continue outer;
                 }
-                String message = "HiRobor";
-                String sender = "GOT IT";
-                URL url = new URL("http://www.bulksmslive.com/tools/geturl/Sms.php?username=goldtive@gmail.com&password=GoldTivere94&sender=" + sender + "&message="+ message +"&flash=0&sendtime=" + messageModel.getDateSent() + "&listname=friends&recipients=" + messageModel.getPnum());
+                String val = null;
+                String sender = "GOTIT";
+                URL url = new URL("http://www.bulksmslive.com/tools/geturl/Sms.php?username=goldtive@gmail.com&password=GoldTivere94&sender=" + sender + "&message=" + messageModel.getBody() + "&flash=0&sendtime=" + messageModel.getDateSent() + "&listname=friends&recipients=" + messageModel.getPnum());
                 //http://www.bulksmslive.com/tools/geturl/Sms.php?username=abc&password=xyz&sender="+sender+"&message="+message+"&flash=0&sendtime=2009-10- 18%2006:30&listname=friends&recipients="+recipient; 
                 //URL gims_url = new URL("http://smshub.lubredsms.com/hub/xmlsmsapi/send?user=loliks&pass=GJP8wRTs&sender=nairabox&message=Acct%3A5073177777%20Amt%3ANGN1%2C200.00%20CR%20Desc%3ATesting%20alert%20Avail%20Bal%3ANGN%3A1%2C342%2C158.36&mobile=08065711040&flash=0");
                 final String USER_AGENT = "Mozilla/5.0";
@@ -145,13 +176,33 @@ public class SMSBankingAlert implements Runnable {
                 BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
                 String inputLine;
                 StringBuffer response = new StringBuffer();
-               // System.out.println(messageModel.getBody() + " dude");
+                // System.out.println(messageModel.getBody() + " dude");
                 while ((inputLine = in.readLine()) != null) {
                     response.append(inputLine);
                 }
                 in.close();
-                System.out.println(response.toString() + " okayyyy");
+                String responseCod = response.toString();
 
+                if (responseCod.equalsIgnoreCase("-1")) {
+                    val = "Incorrect / badly formed URL data";
+                } else if (responseCod.equalsIgnoreCase("-2")) {
+                    val = "Incorrect username and/or password";
+                } else if (responseCod.equalsIgnoreCase("-3")) {
+                    val = "Not enough credit units in user account";
+                } else if (responseCod.equalsIgnoreCase("-4")) {
+                    val = "Invalid sender name";
+                } else if (responseCod.equalsIgnoreCase("-5")) {
+                    val = "No valid recipient ";
+                } else if (responseCod.equalsIgnoreCase("-6")) {
+                    val = "Invalid message length/No message content";
+                } else if (responseCod.equalsIgnoreCase("-10")) {
+                    val = "Unknown/Unspecified error";
+                } else if (responseCod.equalsIgnoreCase("100")) {
+                    val = "Send successful";
+                }
+
+                updateSmsTable(response.toString(), val, messageModel.getId());
+                System.out.println("ID: " + messageModel.getId() + " sent. Message: " + messageModel.getBody() + " Code" + responseCod);
                 // in.close(); unremark
                 //System.out.println("God is my Strength:" + i++  );
                 //  System.out.println("The URL:" + gims_url);
