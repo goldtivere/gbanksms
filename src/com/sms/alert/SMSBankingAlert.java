@@ -77,6 +77,7 @@ public class SMSBankingAlert implements Runnable {
                 _val = _val.replace("'", "%27");
                 _val = _val.replace("(", "%28");
                 _val = _val.replace(")", "%29");
+                _val = _val.replace("#", "%23");
                 messageModel.setBody(_val);
                 messageModel.setPnum(rs.getString("phonenumbers"));
                 messageModel.setDateSent(rs.getString("datesent"));
